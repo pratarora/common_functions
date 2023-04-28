@@ -15,7 +15,8 @@ list_of_packages <- c("ggplot2", "dplyr", "gridGraphics", "gridExtra",
                       "patchwork", "ggbiplot", "DiffBind", "GenomicFeatures", 
                       "ChIPseeker", "rstatix", "ggpubr", "viridis", 
                       "ReactomePA", "Cardinal", "MetaboAnnotation", "IRkernel", 
-                      "RforMassSpectrometry/RforMassSpectrometry", "openxlsx")
+                      "RforMassSpectrometry/RforMassSpectrometry", "openxlsx", 
+                      'ggdendro', 'shinyhelper')
 
 
 
