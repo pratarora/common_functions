@@ -20,7 +20,7 @@ list_of_packages <- c("ggplot2", "dplyr", "gridGraphics", "gridExtra",
 
 
 
-new_packages <- list.of.packages[!(list_of_packages %in% installed.packages()[,"Package"])]
+new_packages <- list_of_packages[!(list_of_packages %in% installed.packages()[,"Package"])]
 new_packages <- unique(new_packages)
 new_packages
 if(length(new_packages)) install.packages(new_packages)
@@ -28,7 +28,7 @@ if(length(new_packages)) install.packages(new_packages)
 
 
 
-new_packages <- list.of.packages[!(list_of_packages %in% installed.packages()[,"Package"])]
+new_packages <- list_of_packages[!(list_of_packages %in% installed.packages()[,"Package"])]
 new_packages <- unique(new_packages)
 new_packages
 BiocManager::install(new_packages)
