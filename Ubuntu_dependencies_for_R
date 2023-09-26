@@ -16,4 +16,6 @@ apt-get update -qq && apt-get -y --no-install-recommends install \
   libbz2-dev \
   liblzma-dev \
   libglpk-dev \
-  libfftw3-3
+  libfftw3-3 \
+  libxext6 \
+  libxext-dev
