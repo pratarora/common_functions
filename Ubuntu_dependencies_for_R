@@ -18,4 +18,5 @@ apt-get update -qq && apt-get -y --no-install-recommends install \
   libglpk-dev \
   libfftw3-3 \
   libxext6 \
-  libxext-dev
+  libxext-dev \
+  libudunits2-dev
