@@ -19,4 +19,5 @@ apt-get update -qq && apt-get -y --no-install-recommends install \
   libfftw3-3 \
   libxext6 \
   libxext-dev \
-  libudunits2-dev
+  libudunits2-dev \
+  libgdal-dev
