@@ -451,7 +451,17 @@
 			"}"
 		],
 		"description": "Generalized PCA function with parameterized settings for plotting"
-	}
+	},
+"clear_memory_functions": {
+			"prefix": "clear_memory_functions",
+			"body": [
+				"rm(list = ls())",
+				"gc()",
+				"setwd(\"${working_directory}\")",
+				"getwd()"
+			],
+			"description": "Clear memory and set working directory in R"
+		}
 										
 				
 				
