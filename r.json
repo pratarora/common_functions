@@ -1,5 +1,5 @@
 {
-  // R VS code snippets file
+  	// R VS code snippets file
 	// Place your snippets for r here. Each snippet is defined under a snippet name and has a prefix, body and 
 	// description. The prefix is what is used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
 	// $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders. Placeholders with the 
@@ -81,7 +81,7 @@
 			"                           pAdjustMethod = \"BH\", OrgDb = orgdb, ont = onto)",
 			"    } else if (onto == \"reactome\") {",
 			"        gene_list <- bitr(gene_list, fromType = \"SYMBOL\", toType = \"ENTREZID\", OrgDb = orgdb)",
-			"        gene_list <- gene_list$ENTREZID",
+			"        gene_list <- gene_list$$ENTREZID",
 			"        compGO <- enrichPathway(gene = gene_list, pvalueCutoff = 0.05, organism = org_reactome, readable = TRUE)",
 			"    } else {",
 			"        message(\"Please enter a valid GO term\")",
@@ -93,11 +93,11 @@
 			"        message(paste0(\"\\n\"))",
 			"    } else {",
 			"        compGO_df <- as.data.frame(compGO)",
-			"        compGO_df$GeneRatio_decimal <- compGO_df$GeneRatio",
-			"        compGO_df$GeneRatio_decimal <- sapply(compGO_df$GeneRatio_decimal,",
+			"        compGO_df$$GeneRatio_decimal <- compGO_df$$GeneRatio",
+			"        compGO_df$$GeneRatio_decimal <- sapply(compGO_df$$GeneRatio_decimal,",
 			"                                              function(x) (eval(parse(text = as.character(x)))))",
-			"        compGO_df$BgRatio_decimal <- compGO_df$BgRatio",
-			"        compGO_df$BgRatio_decimal <- sapply(compGO_df$BgRatio_decimal,",
+			"        compGO_df$$BgRatio_decimal <- compGO_df$$BgRatio",
+			"        compGO_df$$BgRatio_decimal <- sapply(compGO_df$$BgRatio_decimal,",
 			"                                            function(x) (eval(parse(text = as.character(x)))))",
 			"        compGO_df <- compGO_df %>% tidyr::separate_rows(geneID, sep = \"/\", convert = FALSE) %>%",
 			"            arrange(desc(GeneRatio_decimal))",
@@ -140,10 +140,10 @@
 			"prefix": "GSEA_function_single_cell_snippet",
 			"body": [
 				"GSEA_function <- function(df, cell_type, pval_deg = 0.05, pval_enrich = 0.2, onto = \"MF\", prefix = \"\") {",
-				"    gene_list_df <- df[df$cell_type == cell_type & df$p_val <= pval_deg, ]",
+				"    gene_list_df <- df[df$$cell_type == cell_type & df$$p_val <= pval_deg, ]",
 				"    gene_list_df <- gene_list_df %>% arrange(desc(avg_logFC))",
-				"    gene_list_df <- gene_list_df[!is.na(gene_list_df$gene), ]",
-				"    gene_list_df <- gene_list_df[!duplicated(gene_list_df$gene), ]",
+				"    gene_list_df <- gene_list_df[!is.na(gene_list_df$$gene), ]",
+				"    gene_list_df <- gene_list_df[!duplicated(gene_list_df$$gene), ]",
 				"    gene_list <- gene_list_df %>% pull(avg_logFC)",
 				"    names(gene_list) <- gene_list_df %>% pull(gene)",
 				"",
@@ -195,7 +195,7 @@
 				"dir.create(\"GSEA_subcluster/Cellular_component\", showWarnings = FALSE)",
 				"dir.create(\"GSEA_subcluster/Biological_pathways\", showWarnings = FALSE)",
 				"",
-				"cell_type <- DEG_Libra_edger_lrt$cell_type %>% unique %>% sort %>% as.character",
+				"cell_type <- DEG_Libra_edger_lrt$$cell_type %>% unique %>% sort %>% as.character",
 				"cell_type",
 				"lapply(X = cell_type, function(x) {",
 				"    GSEA_function(df = DEG_Libra_edger_lrt, x, onto = \"MF\", prefix = \"GSEA_subcluster/Molecular_function/\")",
@@ -207,10 +207,10 @@
 				"prefix": "GSEA_function_bulk_snippet",
 				"body": [
 					"GSEA_function_bulk <- function(df, pval_deg = 0.05, pval_enrich = 0.2, onto = \"MF\", prefix = \"\") {",
-					"    gene_list_df <- df[df$p_val <= pval_deg, ]",
+					"    gene_list_df <- df[df$$p_val <= pval_deg, ]",
 					"    gene_list_df <- gene_list_df %>% arrange(desc(avg_logFC))",
-					"    gene_list_df <- gene_list_df[!is.na(gene_list_df$gene), ]",
-					"    gene_list_df <- gene_list_df[!duplicated(gene_list_df$gene), ]",
+					"    gene_list_df <- gene_list_df[!is.na(gene_list_df$$gene), ]",
+					"    gene_list_df <- gene_list_df[!duplicated(gene_list_df$$gene), ]",
 					"    gene_list <- gene_list_df %>% pull(avg_logFC)",
 					"    names(gene_list) <- gene_list_df %>% pull(gene)",
 					"",
@@ -462,6 +462,8 @@
 			],
 			"description": "Clear memory and set working directory in R"
 		}
+
+	
 										
 				
 				
