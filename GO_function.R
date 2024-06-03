@@ -1,5 +1,11 @@
 GO_function <- function(df, pval_DEG  = 0.05, pval_enrichment  = 0.05, onto= "MF", prefix="", org="mouse", add_to_graph_title="", num_pathways=15){
 
+require(clusterProfiler)
+require(org.Hs.eg.db)
+require(dplyr)
+require(ggplot2)
+require(tidyr)
+require(ReactomePA)
 gene_list <- df %>% dplyr::filter(p_Value<=pval_DEG) %>% pull(Gene)
 message(paste0("Number of DEG: ",length(gene_list)))
 
