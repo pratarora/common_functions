@@ -61,6 +61,15 @@ if (!exists("lab_run_tasks", mode = "function")) local({
   }
   source(file.path(d, "parallel_helpers.R"))
 })
+# Colour helpers (lab_scale_continuous, ...) live in viz_functions.R
+if (!exists("lab_palette_colors", mode = "function")) local({
+  d <- "reusable_functions"
+  for (i in rev(seq_len(sys.nframe()))) {
+    f <- sys.frame(i)$ofile
+    if (is.character(f) && grepl("sc_functions", basename(f))) { d <- dirname(f); break }
+  }
+  source(file.path(d, "viz_functions.R"))
+})
 
 
 # =============================================================================
@@ -213,19 +222,25 @@ compute_clustering_qc <- function(seurat_obj,
 # Args:
 #   qc_df   : output of compute_clustering_qc()
 #   out_dir : output directory (default "QC")
+#   palette : bar fill colours for the two panels (silhouette, entropy). Default
+#             c("steelblue", "coral3"); a palette name ("viridis", "Set1", ...) takes
+#             its first two colours.
+#   reverse_palette : swap the two colours (default FALSE)
 # -----------------------------------------------------------------------------
-plot_clustering_qc <- function(qc_df, out_dir = "QC") {
+plot_clustering_qc <- function(qc_df, out_dir = "QC",
+                               palette = c("steelblue", "coral3"), reverse_palette = FALSE) {
+  bar_cols <- unname(lab_palette_colors(palette, 2, reverse_palette))
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
 
   p_sil <- ggplot(qc_df, aes(x = factor(resolution), y = mean_silhouette)) +
-    geom_col(fill = "steelblue", alpha = 0.8) +
+    geom_col(fill = bar_cols[1], alpha = 0.8) +
     geom_point(size = 3, color = "black") +
     labs(title = "Silhouette Width", x = "Resolution", y = "Mean Silhouette") +
     theme_classic(base_size = 12) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
   p_ent <- ggplot(qc_df, aes(x = factor(resolution), y = norm_entropy)) +
-    geom_col(fill = "coral3", alpha = 0.8) +
+    geom_col(fill = bar_cols[2], alpha = 0.8) +
     geom_point(size = 3, color = "black") +
     labs(title = "Normalized Sample Entropy\n(Integration Quality)",
          x = "Resolution", y = "Norm. Shannon Entropy") +
@@ -1036,9 +1051,12 @@ run_liana_loop <- function(seurat_obj, conditions, ortholog_resource,
   cat("\n✓✓✓ LIANA complete ✓✓✓\n"); return(invisible(results_all))
 }
 
+# palette = NULL keeps liana's own colour scale; otherwise any lab palette (see
+# viz_functions.R) replaces the colour scale of the aggregate-rank magnitude.
 plot_liana_dotplot <- function(liana_result, source_groups, target_groups,
                                 condition="cond", pair_name="pair", ntop=20,
-                                out_dir="LR_analysis", width=12, height=14) {
+                                out_dir="LR_analysis", width=12, height=14,
+                                palette=NULL, reverse_palette=FALSE) {
   check_required_packages("liana", "plot_liana_dotplot()")
   src_str <- paste(source_groups, collapse="_"); tgt_str <- paste(target_groups, collapse="_")
   fname   <- file.path(out_dir, paste0("liana_", condition, "_", pair_name,
@@ -1050,6 +1068,9 @@ plot_liana_dotplot <- function(liana_result, source_groups, target_groups,
            specificity="natmi.edge_specificity", magnitude="aggregate_rank",
            colour.label="Aggregate Rank\n(p-val)", ntop=ntop) +
       theme(axis.text.x=element_text(angle=45, vjust=1, hjust=1))
+    if (!is.null(palette))
+      p <- suppressMessages(p + lab_scale_continuous(palette, "colour", reverse_palette,
+                                                     name="Aggregate Rank\n(p-val)"))
     ggsave(fname, p, width=width, height=height, limitsize=FALSE)
     cat("  ✓ Dotplot →", fname, "\n")
   }, error=function(e) cat("  ✗ Dotplot error:", e$message, "\n"))
@@ -1069,7 +1090,8 @@ plot_liana_dotplot <- function(liana_result, source_groups, target_groups,
 # `all`, now under the lfc0 folder) and lfc0.585 (= log2(1.5), the sc default).
 #
 # Extra arguments (`...`) go to run_ORA_loop() / run_GSEA_loop(): out_root, universe,
-# background, set_labels, workers, BPPARAM, seed, top_n_ranked, pval_deg.
+# background, set_labels, workers, BPPARAM, seed, top_n_ranked, pval_deg,
+# palette, reverse_palette, make_barplot (ORA + GSEA), ranked_color (GSEA).
 
 .sc_ct_safe <- function(x) gsub("[^A-Za-z0-9_.-]", "_", x)
 

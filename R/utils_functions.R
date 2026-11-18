@@ -16,6 +16,15 @@ library(purrr)
 library(ggVennDiagram)
 library(cmapR)   # for GCT, write_gct()
 library(DESeq2)  # for vst(), assay()
+# Colour helpers (lab_scale_continuous, ...) live in viz_functions.R
+if (!exists("lab_palette_colors", mode = "function")) local({
+  d <- "reusable_functions"
+  for (i in rev(seq_len(sys.nframe()))) {
+    f <- sys.frame(i)$ofile
+    if (is.character(f) && grepl("utils_functions", basename(f))) { d <- dirname(f); break }
+  }
+  source(file.path(d, "viz_functions.R"))
+})
 
 
 # -----------------------------------------------------------------------------
@@ -95,6 +104,10 @@ make_gct <- function(dds, metadata, sample_col = "Sample_Name",
 #   friendly_name: string appended to all output filenames
 #   output_dir   : directory for output files (default "Venn_diagrams")
 #   make_plot    : whether to save PDF + PNG Venn diagram (default TRUE)
+#   palette      : fill colour scale for region counts. Default c("white", "dodgerblue");
+#                  also "viridis", "magma", ..., RColorBrewer names ("Blues", "YlOrRd")
+#                  or any vector of colours (see viz_functions.R)
+#   reverse_palette : flip the colour scale (default FALSE)
 #
 # Output files written to output_dir/:
 #   venn_regions_summary_<friendly_name>.csv  : one row per intersection combo
@@ -106,7 +119,8 @@ make_gct <- function(dds, metadata, sample_col = "Sample_Name",
 #          intersections_wide
 # -----------------------------------------------------------------------------
 process_venn_sets <- function(sets_list, friendly_name,
-                               output_dir = "Venn_diagrams", make_plot = TRUE) {
+                               output_dir = "Venn_diagrams", make_plot = TRUE,
+                               palette = c("white", "dodgerblue"), reverse_palette = FALSE) {
 
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   if (is.null(names(sets_list))) names(sets_list) <- paste0("Set", seq_along(sets_list))
@@ -175,7 +189,7 @@ process_venn_sets <- function(sets_list, friendly_name,
     png_path <- file.path(output_dir, paste0("venn_plot_", friendly_name, ".png"))
 
     p <- ggVennDiagram::ggVennDiagram(sets_list) +
-      ggplot2::scale_fill_gradient(low = "white", high = "dodgerblue") +
+      lab_scale_continuous(palette, "fill", reverse_palette) +
       ggplot2::ggtitle(paste("Venn Diagram -", friendly_name))
 
     ggplot2::ggsave(pdf_path, p, width = 6, height = 6)
