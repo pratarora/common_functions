@@ -88,7 +88,7 @@ library(BiocParallel)
 #
 # Args:
 #   analysis_type : "ORA" or "GSEA"
-#   lfc_label     : threshold key e.g. "lfc2", "lfc1", "lfc0.5"
+#   lfc_label     : threshold key e.g. "lfc2", "lfc1", "lfc0.585"
 #   contrast      : contrast name e.g. "TreatmentVsControl"
 #   onto          : "BP", "MF", "CC", "reactome", or "msigdb"
 #
@@ -547,7 +547,7 @@ GSEA_function <- function(df, pval_deg = 0.05, pval_enrich = 0.2, onto = "MF",
 #   filtered_results : named list [[contrast]][[thresh_name]], each a DEG data
 #                      frame with columns gene, log2FoldChange
 #   contrasts        : character vector of contrast names
-#   thresholds       : named list keyed by LFC label e.g. list(lfc0.5=0.5, lfc1=1, lfc2=2)
+#   thresholds       : named list keyed by LFC label e.g. list(lfc0.585=0.585, lfc1=1, lfc2=2)
 #   org              : "human" (default) or "mouse"
 #   num_pathways     : passed through to ORA_function() (default 15)
 #   universe         : background gene set passed to ORA_function(). NULL (default)
