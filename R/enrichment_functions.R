@@ -38,6 +38,15 @@ if (!exists("lab_run_tasks", mode = "function")) local({
   }
   source(file.path(d, "parallel_helpers.R"))
 })
+# Colour helpers (lab_scale_continuous, ...) live in viz_functions.R
+if (!exists("lab_scale_continuous", mode = "function")) local({
+  d <- "reusable_functions"
+  for (i in rev(seq_len(sys.nframe()))) {
+    f <- sys.frame(i)$ofile
+    if (is.character(f) && grepl("enrichment_functions", basename(f))) { d <- dirname(f); break }
+  }
+  source(file.path(d, "viz_functions.R"))
+})
 
 # Packages needed for one ORA / GSEA call, given the ontology and organism.
 .enrichment_pkgs <- function(onto, org, gsea = FALSE) {
@@ -128,10 +137,18 @@ library(BiocParallel)
 #                  working directory) — e.g. "myproject/downstream/pathway_analysis"
 #   seed         : RNG seed set at the start of the call (default 123; the caller's
 #                  RNG state is restored afterwards). NULL = do not touch the RNG.
+#   palette      : colour scale for p.adjust in the dotplot and barplot. Default
+#                  "red_blue" (red = most significant). Also "viridis", "magma",
+#                  "plasma", "inferno", "cividis", "mako", "rocket", "turbo", any
+#                  RColorBrewer name ("RdBu", "YlOrRd", ...) or a vector of colours,
+#                  e.g. c("darkred", "white", "navy"). See viz_functions.R.
+#   reverse_palette : flip the colour scale (default FALSE)
+#   make_barplot : also save a barplot (x = gene Count, fill = p.adjust) (default TRUE)
 #
 # Output files (in <out_root>/ORA[_universe]/<lfc_label>/<contrast>/GO/<onto>/):
 #   <contrast>_<lfc_label>_<gene_set>_ORA_<onto>.csv
-#   <contrast>_<lfc_label>_<gene_set>_ORA_<onto>.pdf  (+ .png, 300 dpi)
+#   <contrast>_<lfc_label>_<gene_set>_ORA_<onto>.pdf          (dotplot, + .png 300 dpi)
+#   <contrast>_<lfc_label>_<gene_set>_ORA_<onto>_barplot.pdf  (+ .png 300 dpi)
 #
 # Returns: enrichResult object or NULL
 # -----------------------------------------------------------------------------
@@ -139,6 +156,7 @@ ORA_function <- function(gene_list, pval = 0.05, onto = "MF",
                          contrast = "contrast", lfc_label = "lfc1",
                          gene_set = "all", org = "human", num_pathways = 15,
                          universe = NULL, out_root = "pathway_analysis", seed = 123,
+                         palette = "red_blue", reverse_palette = FALSE, make_barplot = TRUE,
                          .universe_entrez = NULL) {
   # .universe_entrez: internal — Entrez ids of `universe`, precomputed once per contrast
   #                   by run_ORA_loop() so the conversion is not repeated per task.
@@ -197,19 +215,20 @@ ORA_function <- function(gene_list, pval = 0.05, onto = "MF",
 
     pathways_selected <- unique(compGO_df$Description)[1:min(num_pathways, nrow(compGO_df))]
     compGO_df_subset  <- compGO_df[compGO_df$Description %in% pathways_selected, ]
+    ora_subtitle <- paste(contrast, lfc_label, gene_set, "| background:",
+                          if (is.null(universe)) "whole genome" else paste0("universe (", length(universe), " genes)"))
 
     p <- ggplot(compGO_df_subset,
                 aes(x = GeneRatio_decimal,
                     y = reorder(Description, GeneRatio_decimal),
                     color = p.adjust, size = Count)) +
       geom_point(alpha = 0.7) +
-      scale_color_gradient(low = "red", high = "blue",
+      lab_scale_continuous(palette, "colour", reverse_palette,
                            guide = guide_colourbar(reverse = TRUE)) +
       theme_bw() +
       theme(axis.text.y = element_text(size = 9)) +
       labs(title    = paste0("ORA: ", onto),
-           subtitle = paste(contrast, lfc_label, gene_set, "| background:",
-                            if (is.null(universe)) "whole genome" else paste0("universe (", length(universe), " genes)")),
+           subtitle = ora_subtitle,
            y = "Pathway", x = "Gene Ratio",
            color = "Adj. P-value", size = "Count")
 
@@ -217,6 +236,23 @@ ORA_function <- function(gene_list, pval = 0.05, onto = "MF",
            p, width = 12, height = max(6, num_pathways * 0.4))
     ggsave(file.path(out_dir, paste0(prefix, "_ORA_", onto, ".png")),
            p, width = 12, height = max(6, num_pathways * 0.4), dpi = 300)
+
+    if (make_barplot) {
+      pb <- ggplot(compGO_df_subset,
+                   aes(x = Count, y = reorder(Description, Count), fill = p.adjust)) +
+        geom_col(alpha = 0.9) +
+        lab_scale_continuous(palette, "fill", reverse_palette,
+                             guide = guide_colourbar(reverse = TRUE)) +
+        scale_x_continuous(expand = expansion(mult = c(0, 0.05))) +
+        theme_bw() +
+        theme(axis.text.y = element_text(size = 9)) +
+        labs(title = paste0("ORA: ", onto), subtitle = ora_subtitle,
+             y = "Pathway", x = "Gene Count", fill = "Adj. P-value")
+      ggsave(file.path(out_dir, paste0(prefix, "_ORA_", onto, "_barplot.pdf")),
+             pb, width = 12, height = max(6, num_pathways * 0.4))
+      ggsave(file.path(out_dir, paste0(prefix, "_ORA_", onto, "_barplot.png")),
+             pb, width = 12, height = max(6, num_pathways * 0.4), dpi = 300)
+    }
 
     cat("✓ ORA completed:", onto, "-", nrow(compGO_df), "pathways,",
         nrow(compGO_df_subset), "plotted →", out_dir, "\n")
@@ -250,11 +286,19 @@ ORA_function <- function(gene_list, pval = 0.05, onto = "MF",
 #   seed              : RNG seed set before the permutation test (default 123; the
 #                       caller's RNG state is restored afterwards). NULL = do not
 #                       touch the RNG (results then vary slightly run to run).
+#   palette           : colour scale for p.adjust in the dotplot and barplot. Default
+#                       "red_blue"; also viridis options, RColorBrewer names or a vector
+#                       of colours (same as ORA_function(); see viz_functions.R)
+#   reverse_palette   : flip the colour scale (default FALSE)
+#   make_barplot      : also save a barplot (x = NES, fill = p.adjust) (default TRUE)
+#   ranked_color      : line colour of the running enrichment score in the ranked
+#                       (gseaplot2) plots (default "green", the enrichplot default)
 #
 # Output files (in GSEA/<lfc_label>/<contrast>/GO/<onto>/):
 #   <contrast>_<lfc_label>_GSEA_<onto>.csv
-#   <contrast>_<lfc_label>_GSEA_<onto>_dotplot.pdf
-#   <contrast>_<lfc_label>_GSEA_<onto>_ranked_<term>.pdf
+#   <contrast>_<lfc_label>_GSEA_<onto>_dotplot.pdf  (+ .png 300 dpi)
+#   <contrast>_<lfc_label>_GSEA_<onto>_barplot.pdf  (+ .png 300 dpi)
+#   <contrast>_<lfc_label>_GSEA_<onto>_ranked_<term>.pdf  (+ .png 300 dpi)
 #
 # Returns: gseaResult object or NULL
 # -----------------------------------------------------------------------------
@@ -284,6 +328,8 @@ GSEA_function <- function(df, pval_deg = 0.05, pval_enrich = 0.2, onto = "MF",
                           organism = "human", msigdb_collection = NULL,
                           num_pathways = 15, top_n_ranked = 3,
                           out_root = "pathway_analysis", seed = 123,
+                          palette = "red_blue", reverse_palette = FALSE, make_barplot = TRUE,
+                          ranked_color = "green",
                           .id_map = NULL) {
   # .id_map: internal — list(key_type, entrez = bitr(<key_type> -> ENTREZID),
   #          entrez2sym = bitr(ENTREZID -> SYMBOL), sym = bitr(ENSEMBL -> SYMBOL) or NULL)
@@ -407,7 +453,7 @@ GSEA_function <- function(df, pval_deg = 0.05, pval_enrich = 0.2, onto = "MF",
                   aes(x = NES, y = reorder(Description, NES),
                       color = p.adjust, size = setSize)) +
         geom_point(alpha = 0.7) +
-        scale_color_gradient(low = "red", high = "blue") +
+        lab_scale_continuous(palette, "colour", reverse_palette) +
         facet_grid(. ~ .sign, scales = "free_y", space = "free_y") +
         theme_bw() +
         theme(axis.text.y = element_text(size = 8)) +
@@ -419,15 +465,34 @@ GSEA_function <- function(df, pval_deg = 0.05, pval_enrich = 0.2, onto = "MF",
              p, width = 12, height = max(6, num_pathways * 0.35))
       ggsave(file.path(out_dir, paste0(prefix, "_GSEA_", onto, "_dotplot.png")),
              p, width = 12, height = max(6, num_pathways * 0.35), dpi = 300)
+
+      if (make_barplot) {
+        pb <- ggplot(compGO_df_subset,
+                     aes(x = NES, y = reorder(Description, NES), fill = p.adjust)) +
+          geom_col(alpha = 0.9) +
+          geom_vline(xintercept = 0, linewidth = 0.3) +
+          lab_scale_continuous(palette, "fill", reverse_palette) +
+          theme_bw() +
+          theme(axis.text.y = element_text(size = 8)) +
+          labs(title    = paste0("GSEA: ", onto),
+               subtitle = paste(contrast, lfc_label, "| NES > 0 = Activated, < 0 = Suppressed"),
+               y = "Pathway", x = "NES", fill = "Adj. P-value")
+        ggsave(file.path(out_dir, paste0(prefix, "_GSEA_", onto, "_barplot.pdf")),
+               pb, width = 12, height = max(6, num_pathways * 0.35))
+        ggsave(file.path(out_dir, paste0(prefix, "_GSEA_", onto, "_barplot.png")),
+               pb, width = 12, height = max(6, num_pathways * 0.35), dpi = 300)
+      }
     }
 
     for (term in head(compGO@result$ID, top_n_ranked)) {
       term_name <- gsub("[^A-Za-z0-9_-]", "_", term)
-      pdf_file  <- file.path(out_dir, paste0(prefix, "_GSEA_", onto,
-                                             "_ranked_", term_name, ".pdf"))
-      .plot_ranked <- function() {   # device is closed even if gseaplot2 fails
-        pdf(pdf_file, width = 10, height = 6); on.exit(dev.off(), add = TRUE)
-        print(enrichplot::gseaplot2(compGO, geneSetID = term, title = term))
+      base_file <- file.path(out_dir, paste0(prefix, "_GSEA_", onto, "_ranked_", term_name))
+      .plot_ranked <- function() {   # devices are closed even if gseaplot2 fails
+        gp <- enrichplot::gseaplot2(compGO, geneSetID = term, title = term, color = ranked_color)
+        pdf(paste0(base_file, ".pdf"), width = 10, height = 6)
+        tryCatch(print(gp), finally = dev.off())
+        png(paste0(base_file, ".png"), width = 10, height = 6, units = "in", res = 300)
+        tryCatch(print(gp), finally = dev.off())
       }
       tryCatch(.plot_ranked(),
                error = function(e) cat("  ⚠ Could not create enrichment plot for", term, "\n"))
@@ -505,6 +570,8 @@ GSEA_function <- function(df, pval_deg = 0.05, pval_enrich = 0.2, onto = "MF",
 #   seed             : RNG seed used inside every analysis (default 123; NULL = none).
 #                      Each analysis is seeded independently, so results do not depend
 #                      on the number of workers.
+#   palette, reverse_palette, make_barplot : passed to ORA_function() (defaults
+#                      "red_blue", FALSE, TRUE)
 #
 # Returns (invisibly): data frame with one row per analysis — contrast, threshold,
 #   onto, gene_set, background, n_genes, status ("done" / "no_enrichment" /
@@ -515,8 +582,10 @@ run_ORA_loop <- function(filtered_results, contrasts, thresholds,
                          background = c("both", "genome", "universe"),
                          out_root = "pathway_analysis",
                          set_labels = c(all = "all", up = "up", down = "down"),
-                         workers = NULL, BPPARAM = NULL, seed = 123) {
+                         workers = NULL, BPPARAM = NULL, seed = 123,
+                         palette = "red_blue", reverse_palette = FALSE, make_barplot = TRUE) {
   background <- match.arg(background)
+  lab_palette_colors(palette, 2)   # fail fast on an invalid palette, before any work
   if (is.null(universe)) background <- "genome"        # nothing to compare against
   # genome  -> <out_root>/ORA/...           (whole OrgDb as background)
   # universe-> <out_root>/ORA_universe/...  (custom background)
@@ -602,7 +671,8 @@ run_ORA_loop <- function(filtered_results, contrasts, thresholds,
                         contrast = task$contrast, lfc_label = task$threshold,
                         gene_set = task$gene_set, org = org, num_pathways = num_pathways,
                         universe = task$universe, out_root = out_root, seed = seed,
-                        .universe_entrez = ue)
+                        palette = palette, reverse_palette = reverse_palette,
+                        make_barplot = make_barplot, .universe_entrez = ue)
     list(status = if (is.null(res)) "no_enrichment" else "done",
          n_terms = if (is.null(res)) 0L else nrow(as.data.frame(res)), message = "")
   }
@@ -653,6 +723,8 @@ run_ORA_loop <- function(filtered_results, contrasts, thresholds,
 #   workers, BPPARAM, seed : as in run_ORA_loop(). The seed matters more here —
 #                   GSEA uses permutations, so without a seed results shift slightly
 #                   between runs.
+#   palette, reverse_palette, make_barplot, ranked_color : passed to GSEA_function()
+#                   (defaults "red_blue", FALSE, TRUE, "green")
 #
 # Returns (invisibly): data frame with one row per analysis — contrast, threshold,
 #   onto, status, n_terms, message.
@@ -660,7 +732,10 @@ run_ORA_loop <- function(filtered_results, contrasts, thresholds,
 run_GSEA_loop <- function(results_list, contrasts, thresholds,
                           organism = "human", num_pathways = 15, top_n_ranked = 3,
                           pval_deg = 1.0, out_root = "pathway_analysis",
-                          workers = NULL, BPPARAM = NULL, seed = 123) {
+                          workers = NULL, BPPARAM = NULL, seed = 123,
+                          palette = "red_blue", reverse_palette = FALSE, make_barplot = TRUE,
+                          ranked_color = "green") {
+  lab_palette_colors(palette, 2)   # fail fast on an invalid palette, before any work
   gsea_analyses <- list(
     list(onto = "BP",       msigdb = NULL),
     list(onto = "MF",       msigdb = NULL),
@@ -727,6 +802,8 @@ run_GSEA_loop <- function(results_list, contrasts, thresholds,
                          organism = organism, msigdb_collection = task$msigdb,
                          num_pathways = num_pathways, top_n_ranked = top_n_ranked,
                          out_root = out_root, seed = seed,
+                         palette = palette, reverse_palette = reverse_palette,
+                         make_barplot = make_barplot, ranked_color = ranked_color,
                          .id_map = id_maps[[task$contrast]])
     list(status = if (is.null(res)) "no_enrichment" else "done",
          n_terms = if (is.null(res)) 0L else nrow(as.data.frame(res)), message = "")
