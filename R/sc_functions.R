@@ -29,7 +29,7 @@
 #   ── LIANA ───────────────────────────────────────────────────────────────────
 #   run_liana_zebrafish()        : Build zebrafish LIANA ortholog resource
 #   run_liana_loop()             : LIANA per condition → CSVs + dotplots
-#   plot_liana_dotplot()         : Save publication LIANA dotplot PDF
+#   plot_liana_dotplot()         : Save publication LIANA dotplot PDF + PNG
 #
 #   ── SC enrichment wrappers ──────────────────────────────────────────────────
 #   run_ORA_loop_sc()            : ORA with <CellType> subfolder (parallel, via run_ORA_loop)
@@ -1000,12 +1000,16 @@ run_liana_zebrafish <- function(target_organism=7955, resource_name="Consensus")
 #                   INSIDE one LIANA run (NULL = liana's default, serial)
 #   workers       : conditions run concurrently (default 1; set e.g. 3 for 3 conditions —
 #                   each worker holds one condition's subset of the object)
+#   palette, reverse_palette : colour scale of the dotplots, passed to plot_liana_dotplot()
+#                   (default NULL = liana's own scale; any lab palette name or colour vector)
 run_liana_loop <- function(seurat_obj, conditions, ortholog_resource,
                             source_groups, target_groups,
                             condition_col="condition", cell_type_col="cell_type",
                             agg_rank_cutoff=0.05, ntop=20, out_dir="LR_analysis",
-                            liana_workers=NULL, workers=1, BPPARAM=NULL) {
+                            liana_workers=NULL, workers=1, BPPARAM=NULL,
+                            palette=NULL, reverse_palette=FALSE) {
   check_required_packages("liana", "run_liana_loop()")
+  if (!is.null(palette)) lab_palette_colors(palette, 2)   # fail fast on an invalid palette
   dir.create(out_dir, showWarnings=FALSE, recursive=TRUE)
   if (is.character(source_groups)) source_groups <- list(all=source_groups)
   if (is.character(target_groups)) target_groups <- list(all=target_groups)
@@ -1034,7 +1038,8 @@ run_liana_loop <- function(seurat_obj, conditions, ortholog_resource,
 
     for (pair_name in names(source_groups))
       plot_liana_dotplot(liana_sig, source_groups[[pair_name]], target_groups[[pair_name]],
-                         cond, pair_name, ntop, out_dir)
+                         condition = cond, pair_name = pair_name, ntop = ntop, out_dir = out_dir,
+                         palette = palette, reverse_palette = reverse_palette)
     liana_res
   }
 
@@ -1051,8 +1056,10 @@ run_liana_loop <- function(seurat_obj, conditions, ortholog_resource,
   cat("\n✓✓✓ LIANA complete ✓✓✓\n"); return(invisible(results_all))
 }
 
+# Saves the dotplot as PDF + PNG (300 dpi): liana_<condition>_<pair>_<src>__TO__<tgt>_agg05.pdf/.png
 # palette = NULL keeps liana's own colour scale; otherwise any lab palette (see
 # viz_functions.R) replaces the colour scale of the aggregate-rank magnitude.
+# Returns the ggplot invisibly (NULL if nothing to plot / on error).
 plot_liana_dotplot <- function(liana_result, source_groups, target_groups,
                                 condition="cond", pair_name="pair", ntop=20,
                                 out_dir="LR_analysis", width=12, height=14,
@@ -1060,9 +1067,10 @@ plot_liana_dotplot <- function(liana_result, source_groups, target_groups,
   check_required_packages("liana", "plot_liana_dotplot()")
   src_str <- paste(source_groups, collapse="_"); tgt_str <- paste(target_groups, collapse="_")
   fname   <- file.path(out_dir, paste0("liana_", condition, "_", pair_name,
-                                        "_", src_str, "__TO__", tgt_str, "_agg05.pdf"))
+                                        "_", src_str, "__TO__", tgt_str, "_agg05"))
   plot_data <- liana_result %>% dplyr::filter(source %in% source_groups | target %in% target_groups)
   if (nrow(plot_data) == 0) { cat("  ⚠ No interactions to plot\n"); return(invisible(NULL)) }
+  dir.create(out_dir, showWarnings=FALSE, recursive=TRUE)
   tryCatch({
     p <- liana::liana_dotplot(plot_data, source_groups=source_groups, target_groups=target_groups,
            specificity="natmi.edge_specificity", magnitude="aggregate_rank",
@@ -1071,9 +1079,11 @@ plot_liana_dotplot <- function(liana_result, source_groups, target_groups,
     if (!is.null(palette))
       p <- suppressMessages(p + lab_scale_continuous(palette, "colour", reverse_palette,
                                                      name="Aggregate Rank\n(p-val)"))
-    ggsave(fname, p, width=width, height=height, limitsize=FALSE)
-    cat("  ✓ Dotplot →", fname, "\n")
-  }, error=function(e) cat("  ✗ Dotplot error:", e$message, "\n"))
+    ggsave(paste0(fname, ".pdf"), p, width=width, height=height, limitsize=FALSE)
+    ggsave(paste0(fname, ".png"), p, width=width, height=height, dpi=300, limitsize=FALSE)
+    cat("  ✓ Dotplot →", paste0(fname, ".pdf/.png"), "\n")
+    invisible(p)
+  }, error=function(e) { cat("  ✗ Dotplot error:", e$message, "\n"); invisible(NULL) })
 }
 
 
